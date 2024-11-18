@@ -29,7 +29,6 @@ cd podcast-generator
 pip install -r requirements.txt
 
 # 프로젝트 루트에 .env 파일을 생성하고 OpenAI API 키 추가
-echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
 ```
 
 ## 사용 방법
