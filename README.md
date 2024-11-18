@@ -22,7 +22,7 @@
 
 ```bash
 # 레포지토리 클론
-git clone <[repository_url](https://github.com/bigdefence/AI-Search-Engine-podcast/)>
+git clone https://github.com/bigdefence/AI-Search-Engine-podcast
 cd podcast-generator
 
 # 종속성 설치
