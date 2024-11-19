@@ -39,8 +39,8 @@ sudo apt-get install ffmpeg
 1. **저장소 클론**
 
    ```sh
-   git clone https://github.com/yourusername/podcast-generator.git
-   cd podcast-generator
+   git clone https://github.com/bigdefence/AI-Search-Engine-podcast.git
+   cd AI-Search-Engine-podcast
    ```
 
 2. **가상 환경 생성 (선택 사항이지만 권장됨)**
