@@ -84,30 +84,47 @@ class PodcastGenerator:
 
     def generate_script(self, query: str, search_results: str, 
                        duration_minutes: int = 5) -> str:
-        """팟캐스트 스크립트 생성"""
+        """팟캐스트 스크립트 생성 - 두 명의 AI 호스트가 진행"""
         system_prompt = """
-        You are an expert podcast script writer. Create engaging, conversational scripts 
-        that naturally incorporate information while maintaining good pacing and flow.
-        Follow broadcast standards and use clear language.
+        You are an expert podcast script writer. Create engaging scripts for two AI hosts:
+        - Host A (지식): A knowledgeable and analytical character who focuses on facts and explanations
+        - Host B (호기심): A curious and enthusiastic character who asks insightful questions and shares interesting perspectives
+        
+        Format the script with clear speaker labels and natural conversational flow. 
+        Include appropriate reactions, interjections, and chemistry between the hosts.
         """
 
         user_prompt = f"""
         주제: '{query}'
         
-        다음 검색 결과를 바탕으로 {duration_minutes}분 길이의 팟캐스트 대본을 작성해주세요.
+        다음 검색 결과를 바탕으로 {duration_minutes}분 길이의 2인 진행 팟캐스트 대본을 작성해주세요.
 
-        시간 배분:
-        - 도입부: 30초
-        - 본문: {duration_minutes - 1}분
-        - 마무리: 30초
+        구성:
+        1. 도입부 (30초):
+           - 인사 및 주제 소개
+           - 두 진행자의 자연스러운 호흡
+        
+        2. 본문 ({duration_minutes - 1}분):
+           - 지식: 검색 결과의 핵심 내용 설명
+           - 호기심: 적절한 질문과 청취자 관점 제시
+           - 서로의 의견에 대한 자연스러운 리액션
+        
+        3. 마무리 (30초):
+           - 핵심 내용 정리
+           - 청취자 대상 마무리 멘트
+
+        형식:
+        지식: (대사)
+        호기심: (대사)
 
         필수 요구사항:
-        1. 자연스러운 대화체 사용
-        2. 검색 결과의 핵심 정보 포함
-        3. 문장은 간결하게 구성
-        4. 적절한 문장 부호 사용
-        5. 청취자의 이해를 돕는 설명 포함
-        6. 항상 한글 작성
+        1. 모든 대화는 한글로 작성
+        2. 자연스러운 대화체 사용
+        3. 진행자별 특성이 잘 드러나도록 작성
+        4. 서로 호흡이 맞는 대화 전개
+        5. 청취자가 이해하기 쉽게 설명
+        6. 적절한 예시와 비유 활용
+
         검색 결과:
         {search_results}
         """
@@ -127,25 +144,47 @@ class PodcastGenerator:
             console.print(f"[red]Error generating podcast script: {str(e)}[/red]")
             return None
 
-    def generate_audio(self, script: str, voice: str = "nova") -> Optional[bytes]:
-        """
-        OpenAI TTS API를 사용하여 오디오 생성
-        
-        Args:
-            script (str): 변환할 텍스트
-            voice (str): 사용할 음성 (alloy, echo, fable, onyx, nova, shimmer)
-        
-        Returns:
-            bytes: 생성된 오디오 데이터
-        """
+    def generate_audio(self, script: str) -> Optional[bytes]:
+        """두 진행자의 목소리로 오디오 생성"""
         try:
-            response = self.client.audio.speech.create(
-                model="tts-1",
-                voice=voice,
-                input=script,
-                speed= 1.0
-            )
-            return response.content
+            # Split the script into segments by speaker
+            segments = []
+            current_speaker = ""
+            current_text = []
+            
+            for line in script.split('\n'):
+                if line.startswith('지식:'):
+                    if current_speaker and current_text:
+                        segments.append((current_speaker, ' '.join(current_text)))
+                    current_speaker = "onyx"  # More authoritative voice for 지식
+                    current_text = [line.replace('지식:', '').strip()]
+                elif line.startswith('호기심:'):
+                    if current_speaker and current_text:
+                        segments.append((current_speaker, ' '.join(current_text)))
+                    current_speaker = "nova"  # More energetic voice for 호기심
+                    current_text = [line.replace('호기심:', '').strip()]
+                elif line.strip():
+                    if current_speaker:
+                        current_text.append(line.strip())
+            
+            if current_speaker and current_text:
+                segments.append((current_speaker, ' '.join(current_text)))
+
+            # Generate audio for each segment and combine
+            all_audio = []
+            for voice, text in segments:
+                if text.strip():
+                    response = self.client.audio.speech.create(
+                        model="tts-1",
+                        voice=voice,
+                        input=text,
+                        speed=1.0
+                    )
+                    all_audio.append(response.content)
+
+            # Combine all audio segments
+            return b''.join(all_audio)
+
         except Exception as e:
             console.print(f"[red]Error generating audio: {str(e)}[/red]")
             return None
@@ -178,14 +217,8 @@ async def main():
         # 사용자 입력
         query = console.input("[green]팟캐스트 주제를 입력하세요: [/green]")
         duration = console.input("[green]팟캐스트 길이(분)를 입력하세요 [기본값: 5]: [/green]")
-        voice = console.input("[green]사용할 음성을 선택하세요 (alloy/echo/fable/onyx/nova/shimmer) [기본값: nova]: [/green]")
         
         duration = int(duration) if duration.strip() else 5
-        voice = voice.strip().lower() if voice.strip() else "nova"
-        
-        if voice not in ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]:
-            console.print("[yellow]잘못된 음성이 선택되었습니다. 기본값 'nova'를 사용합니다.[/yellow]")
-            voice = "nova"
 
         # 검색 및 스크립트 생성
         with console.status("[cyan]검색 결과를 가져오는 중...[/cyan]"):
@@ -206,8 +239,8 @@ async def main():
             ))
             
             # 오디오 생성
-            with console.status("[cyan]음성 생성 중...[/cyan]"):
-                audio = generator.generate_audio(script, voice)
+            with console.status("[cyan]팟캐스트 생성 중...[/cyan]"):
+                audio = generator.generate_audio(script)
             
             if audio:
                 # 파일 저장
