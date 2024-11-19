@@ -14,6 +14,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.markdown import Markdown
 import subprocess
+from pydub import AudioSegment
 console = Console()
 
 class PodcastGenerator:
@@ -189,6 +190,33 @@ class PodcastGenerator:
             console.print(f"[red]Error generating audio: {str(e)}[/red]")
             return None
 
+    def add_background_music(self, audio_file: str, music_file: str, output_file: str, volume_reduction: int = -30):
+        """배경음악을 추가하고 최종 오디오를 저장하는 메서드"""
+        try:
+            # 생성된 음성 로드
+            voice = AudioSegment.from_file(audio_file)
+            
+            # 배경음악 로드
+            music = AudioSegment.from_file(music_file)
+            
+            # 배경음악 볼륨 조절
+            music = music - abs(volume_reduction)
+            
+            # 배경음악을 음성 길이에 맞게 반복
+            if len(music) < len(voice):
+                music = music * (len(voice) // len(music) + 1)
+            music = music[:len(voice)]
+            
+            # 음성과 배경음악 병합
+            combined = voice.overlay(music)
+            
+            # 병합된 오디오 저장
+            combined.export(output_file, format="mp3")
+            return output_file
+        except Exception as e:
+            console.print(f"[red]배경음악 추가 중 오류 발생: {str(e)}[/red]")
+            return None
+
     def save_outputs(self, script: str, audio: bytes, query: str) -> tuple:
         """스크립트와 오디오 파일 저장"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -246,10 +274,20 @@ async def main():
                 # 파일 저장
                 script_file, audio_file = generator.save_outputs(script, audio, query)
                 
-                console.print(f"\n[bold green]파일이 생성되었습니다:[/bold green]")
-                console.print(f"스크립트: {script_file}")
-                console.print(f"오디오: {audio_file}")
-                play_audio_with_system(audio_file)
+                # 배경음악 파일 경로
+                music_file = "background.mp3"  # 배경음악 파일 이름 또는 경로
+                
+                # 배경음악 추가
+                output_with_music = str(generator.output_dir / f"podcast_with_bgm_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3")
+                result_file = generator.add_background_music(audio_file, music_file, output_with_music)
+                
+                if result_file:
+                    console.print(f"\n[bold green]파일이 생성되었습니다:[/bold green]")
+                    console.print(f"스크립트: {script_file}")
+                    console.print(f"오디오: {result_file}")
+                    play_audio_with_system(result_file)
+                else:
+                    console.print("[red]배경음악 추가에 실패했습니다.[/red]")
             else:
                 console.print("[red]음성 생성에 실패했습니다.[/red]")
         
